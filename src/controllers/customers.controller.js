@@ -26,4 +26,25 @@ export async function getCustomerById(req, res) {
     } catch (err) {
         res.status(500).send(err.message);
     }
-}
+};
+
+export async function postCustomer(req, res) {
+    const { name, phone, cpf, birthday } = req.body;
+
+    try {
+        const existingCpf = await db.query(`SELECT cpf FROM customers WHERE cpf = $1;`, [cpf]);
+
+        if (existingCpf.rowCount > 0) {
+            return res.status(400).send(`Esse CPF já foi cadastrado.`)
+        }
+
+        await db.query(`
+        INSERT INTO customers
+        (name, phone, cpf, birthday)
+        VALUES ($1, $2, $3, $4);
+        `, [name, phone, cpf, birthday]);
+        res.status(201).send(`Consumidor cadastrado!`)
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+};
