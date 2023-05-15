@@ -83,6 +83,7 @@ export async function postRentals(req, res) {
     }
 }
 
+
 export async function returnRental(req, res) {
     const rentalId = parseInt(req.params.id);
 
@@ -121,3 +122,26 @@ export async function returnRental(req, res) {
         res.status(500).send(err.message);
     }
 }
+
+
+export async function deleteRental(req, res) {
+    const rentalId = parseInt(req.params.id);
+
+    try {
+        const existingRental = await db.query(`SELECT id, "returnDate" FROM rentals WHERE id = $1;`, [rentalId]);
+        if (existingRental.rowCount === 0) {
+            return res.status(404).send(`O aluguel não existe.`);
+        }
+
+        if (existingRental.rows[0].returnDate !== null) {
+            return res.status(400).send(`O aluguel já está finalizado.`);
+        }
+
+        await db.query(`DELETE FROM rentals WHERE id = $1;`, [rentalId]);
+
+        res.status(200).send();
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+}
+
