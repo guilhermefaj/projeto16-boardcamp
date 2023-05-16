@@ -15,7 +15,7 @@ export async function getRentals(req, res) {
             id: rental.id,
             customerId: rental.customerId,
             gameId: rental.gameId,
-            rentDate: rental.rentDate,
+            rentDate: new Date(rental.rentDate).toJSON().split('T')[0],
             daysRented: rental.daysRented,
             returnDate: rental.returnDate,
             originalPrice: rental.originalPrice,
@@ -38,50 +38,47 @@ export async function getRentals(req, res) {
 
 
 export async function postRentals(req, res) {
-    const daysRented = parseInt(req.body.daysRented);
-    const customerId = parseInt(req.body.customerId);
-    const gameId = parseInt(req.body.gameId);
-
-    console.log('customerId:', typeof (customerId));
-    console.log('gameId:', typeof (gameId));
-    console.log('daysRented:', typeof (daysRented));
-
-    if (isNaN(customerId) || isNaN(gameId)) {
-        return res.status(400).send('Insira valores inteiros.');
-    }
+    const { customerId, gameId, daysRented } = req.body;
 
     try {
-        const existingCustomer = await db.query(`SELECT id FROM customers WHERE id = $1;`, [customerId]);
-        if (existingCustomer.rowCount === 0) {
+        if (!Number.isInteger(parseInt(customerId)) || !Number.isInteger(parseInt(gameId)) || !Number.isInteger(parseInt(daysRented))) {
+            return res.status(400).send('Insira valores inteiros.');
+        }
+
+        const customerQuery = await db.query(`SELECT * FROM customers WHERE id = $1;`, [customerId]);
+        if (customerQuery.rowCount === 0) {
             return res.status(400).send(`O cliente não existe.`);
         }
 
-        const existingGame = await db.query(`SELECT id, "stockTotal" FROM games WHERE id = $1;`, [gameId]);
-        if (existingGame.rowCount === 0) {
+        const games = await db.query(`SELECT * FROM games WHERE id = $1;`, [gameId]);
+        if (games.rowCount === 0) {
             return res.status(400).send(`O jogo não existe.`);
         }
 
-        const gameStock = existingGame.rows[0].stockTotal;
+        const checkGameStock = await db.query(`
+        SELECT * FROM rentals WHERE "gameId"=$1 AND "returnDate" IS NULL;
+        `, [gameId]);
 
-        const rentedGames = await db.query(`SELECT COUNT(*) FROM rentals WHERE "gameId" = $1 AND "returnDate" IS NULL;`, [gameId]);
-        if (rentedGames.rowCount > gameStock) {
-            return res.status(400).send(`Não há jogos disponíveis para aluguel.`);
-        }
+        if (checkGameStock.rowCount >= games.rows[0].stockTotal) {
+            return res.status(400).send(`Não há mais desse jogo disponível no estoque!`)
+        };
 
         const rentDate = new Date().toISOString().split('T')[0]; // Data atual
-        const originalPrice = daysRented * existingGame.rows[0].pricePerDay;
-        const query = `
+        const originalPrice = daysRented * games.rows[0].pricePerDay;
+
+        const insertQuery = `
         INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee")
         VALUES ($1, $2, $3, $4, NULL, $5, NULL);
       `;
 
-        await db.query(query, [customerId, gameId, rentDate, daysRented, originalPrice]);
+        await db.query(insertQuery, [customerId, gameId, rentDate, daysRented, originalPrice]);
 
         res.status(201).send();
     } catch (err) {
         res.status(500).send(err.message);
     }
 }
+
 
 
 export async function returnRental(req, res) {
