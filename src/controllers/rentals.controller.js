@@ -17,7 +17,7 @@ export async function getRentals(req, res) {
             gameId: rental.gameId,
             rentDate: new Date(rental.rentDate).toJSON().split('T')[0],
             daysRented: rental.daysRented,
-            returnDate: rental.returnDate,
+            returnDate: new Date(rental.returnDate).toJSON().split('T')[0],
             originalPrice: rental.originalPrice,
             delayFee: rental.delayFee,
             customer: {
@@ -101,10 +101,10 @@ export async function returnRental(req, res) {
         const gameInfo = await db.query(`SELECT "pricePerDay" FROM games WHERE id = $1;`, [gameId]);
         const pricePerDay = gameInfo.rows[0].pricePerDay;
 
-        const rentDate = new Date(rental.rentDate);
-        const returnDate = new Date();
-        const daysLate = Math.ceil((returnDate - rentDate) / (1000 * 60 * 60 * 24));
-        const delayFee = daysLate > 0 ? daysLate * pricePerDay : 0;
+        const rentDate = rental.rentDate;
+        const returnDate = new Date().toISOString().split('T')[0]; // Data atual
+        const daysLate = Math.ceil((new Date(returnDate) - new Date(rentDate)) / (1000 * 60 * 60 * 24));
+        const delayFee = daysLate > rental.daysRented ? (daysLate - rental.daysRented) * pricePerDay : 0;
 
         const updateQuery = `
         UPDATE rentals
@@ -119,6 +119,7 @@ export async function returnRental(req, res) {
         res.status(500).send(err.message);
     }
 }
+
 
 
 export async function deleteRental(req, res) {
